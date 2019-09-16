@@ -9,28 +9,39 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
+
+	"github.com/peterbourgon/ff"
 )
 
 func main() {
+	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	args := struct {
-		clientID      string
-		secret        string
-		refreshToken  string
-		printFullResp bool
-	}{}
-	flag.BoolVar(&args.printFullResp, "fullresp", false, "pretty-print all respone data")
-	flag.StringVar(&args.clientID, "id", "", "the OAuth2 API client ID")
-	flag.StringVar(&args.secret, "secret", "", "the OAuth2 API client secret")
-	flag.StringVar(&args.refreshToken, "refreshtoken", "", "a refresh token previously obtained via the fitbit API (or web dashboard)")
-	flag.Parse()
-	if args.clientID == "" || args.secret == "" || args.refreshToken == "" {
+		clientID      *string
+		secret        *string
+		refreshToken  *string
+		printFullResp *bool
+	}{
+		fs.String("id", "", "the OAuth2 API client ID"),
+		fs.String("secret", "", "the OAuth2 API client secret"),
+		fs.String("refreshtoken", "", "a refresh token previously obtained via the fitbit API (or web dashboard)"),
+		fs.Bool("fullresp", false, "pretty-print all respone data"),
+	}
+	_ = fs.String("config", "", "config file (optional)")
+	ff.Parse(fs, os.Args[1:],
+		ff.WithConfigFileFlag("config"),
+		ff.WithConfigFileParser(ff.PlainParser),
+		ff.WithEnvVarPrefix("BIT_FIT"),
+	)
+	switch {
+	case *args.clientID == "", *args.secret == "", *args.refreshToken == "":
 		flag.Usage()
 	}
 
-	s := fmt.Sprintf("%v:%v", args.clientID, args.secret)
+	s := fmt.Sprintf("%v:%v", *args.clientID, *args.secret)
 	s = fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(s)))
-	payload := fmt.Sprintf("grant_type=refresh_token&refresh_token=%v", args.refreshToken)
+	payload := fmt.Sprintf("grant_type=refresh_token&refresh_token=%v", *args.refreshToken)
 	url := "https://api.fitbit.com/oauth2/token"
 
 	req, err := http.NewRequest("POST", url, strings.NewReader(payload))
@@ -49,7 +60,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if args.printFullResp {
+	if *args.printFullResp {
 		prettyPrint(b)
 		return
 	}
