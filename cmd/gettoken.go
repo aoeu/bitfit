@@ -28,7 +28,7 @@ func main() {
 	_ = fs.String("config", "", "config file (optional)")
 	ff.Parse(fs, os.Args[1:],
 		ff.WithConfigFileFlag("config"),
-		ff.WithConfigFileParser(ff.PlainParser),
+		ff.WithConfigFileParser(ff.JSONParser),
 		ff.WithEnvVarPrefix("BIT_FIT"),
 	)
 	switch {
