@@ -1,6 +1,7 @@
 package bitfit
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -10,7 +11,12 @@ import (
 	"time"
 )
 
-func FetchTokens(id, secret, refreshToken string) (respBody []byte, err error) {
+type Tokens struct {
+	Access  string `json:"access_token"`
+	Refresh string `json:"refresh_token"`
+}
+
+func FetchTokensPayload(id, secret, refreshToken string) ([]byte, error) {
 	s := fmt.Sprintf("%v:%v", id, secret)
 	s = fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(s)))
 	payload := fmt.Sprintf("grant_type=refresh_token&refresh_token=%v", refreshToken)
@@ -32,21 +38,35 @@ func FetchTokens(id, secret, refreshToken string) (respBody []byte, err error) {
 	if err != nil {
 		return []byte{}, err
 	}
-	return b, nil
+	return format(b)
 }
 
-func FetchAuthToken(id, secret, refreshToken string) (string, error) {
-	b, err := FetchTokens(id, secret, refreshToken)
+func format(payload []byte) ([]byte, error) {
+	b := new(bytes.Buffer)
+	if err := json.Indent(b, payload, "", "    "); err != nil {
+		s := "could not debug print '%v' due to error: %v"
+		return []byte{}, fmt.Errorf(s, string(payload), err)
+	}
+	return b.Bytes(), nil
+}
+
+func FetchTokens(id, secret, refreshToken string) (Tokens, error) {
+	b, err := FetchTokensPayload(id, secret, refreshToken)
 	if err != nil {
-		return "", err
+		return Tokens{}, err
 	}
-	p := struct {
-		Access_token string
+	u := struct {
+		Access_token  string
+		Refresh_token string
+		Errors        []map[string]string
 	}{}
-	if err := json.Unmarshal(b, &p); err != nil {
-		return "", err
+	if err := json.Unmarshal(b, &u); err != nil {
+		return Tokens{}, err
 	}
-	return p.Access_token, nil
+	if len(u.Errors) > 0 {
+		return Tokens{}, fmt.Errorf(u.Errors[0]["message"])
+	}
+	return Tokens{Access: u.Access_token, Refresh: u.Refresh_token}, nil
 }
 
 func FetchProfile(authToken string) (respBody []byte, err error) {
