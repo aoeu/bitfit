@@ -89,7 +89,8 @@ func FetchProfile(authToken string) (respBody []byte, err error) {
 }
 
 func FetchSleepLog(authToken string, t time.Time) (respBody []byte, err error) {
-	url := fmt.Sprintf("https://api.fitbit.com/1.2/user/-/sleep/date/%v.json", t.Format("2006-01-02"))
+	s := "https://api.fitbit.com/1.2/user/-/sleep/date/%v.json"
+	url := fmt.Sprintf(s, t.Format("2006-01-02"))
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return []byte{}, err
