@@ -4,12 +4,49 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"time"
+
+	"github.com/peterbourgon/ff"
 )
+
+type Args struct {
+	ClientID     *string
+	Secret       *string
+	RefreshToken *string
+}
+
+func ParseFlags(name string) (Args, error) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	a := Args{
+		fs.String("id", "", "the OAuth2 API client ID"),
+		fs.String("secret", "", "the OAuth2 API client secret"),
+		fs.String("refreshtoken", "", "a refresh token previously obtained via the fitbit API (or web dashboard)"),
+	}
+	_ = fs.String("config", "", "config file (optional)")
+	err := ff.Parse(fs, os.Args[1:],
+		ff.WithConfigFileFlag("config"),
+		ff.WithConfigFileParser(ff.JSONParser),
+		ff.WithEnvVarPrefix("BIT_FIT"),
+	)
+	if err != nil {
+		return a, err
+	}
+	switch {
+	case *a.ClientID == "":
+		err = fmt.Errorf("no client ID provided\n")
+	case *a.Secret == "":
+		err = fmt.Errorf("no client secret provided\n")
+	case *a.RefreshToken == "":
+		err = fmt.Errorf("no refresh token provided\n")
+	}
+	return a, err
+}
 
 type Tokens struct {
 	Access  string `json:"access_token"`
@@ -105,5 +142,5 @@ func FetchSleepLog(authToken string, t time.Time) (respBody []byte, err error) {
 	if err != nil {
 		return []byte{}, err
 	}
-	return b, nil
+	return format(b)
 }
