@@ -144,3 +144,73 @@ func FetchSleepLog(authToken string, t time.Time) (respBody []byte, err error) {
 	}
 	return format(b)
 }
+
+type SleepLog struct {
+	Summary *Summary `json:"summary"`
+}
+
+type Summary struct {
+	DurationPerStage *DurationPerStage `json:"stages"`
+	DurationAsleep   time.Duration     `json:"totalMinutesAsleep"`
+	NumSleepRecords  uint              `json:"totalSleepRecords"`
+	DurationInBed    time.Duration     `json:"totalTimeInBed"`
+}
+
+func (s *Summary) UnmarshalJSON(data []byte) error {
+	ss := struct {
+		Stages             *DurationPerStage
+		TotalMinutesAsleep uint
+		TotalSleepRecords  uint
+		TotalTimeInBed     uint
+	}{}
+	if err := json.Unmarshal(data, &ss); err != nil {
+		return err
+	}
+	s.DurationPerStage = ss.Stages
+	s.NumSleepRecords = ss.TotalSleepRecords
+	var err error
+	if s.DurationAsleep, err = parseMin(ss.TotalMinutesAsleep); err != nil {
+		return err
+	}
+	if s.DurationInBed, err = parseMin(ss.TotalTimeInBed); err != nil {
+		return err
+	}
+	return nil
+}
+
+func parseMin(i uint) (time.Duration, error) {
+	return time.ParseDuration(fmt.Sprintf("%vm", i))
+}
+
+type DurationPerStage struct {
+	Deep  time.Duration `json:"deep"`
+	Light time.Duration `json:"light"`
+	REM   time.Duration `json:"rem"`
+	Awake time.Duration `json:"wake"`
+}
+
+func (d *DurationPerStage) UnmarshalJSON(data []byte) error {
+	s := struct {
+		Deep  uint
+		Light uint
+		Rem   uint
+		Wake  uint
+	}{}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	var err error
+	if d.Deep, err = parseMin(s.Deep); err != nil {
+		return err
+	}
+	if d.Light, err = parseMin(s.Deep); err != nil {
+		return err
+	}
+	if d.REM, err = parseMin(s.Rem); err != nil {
+		return err
+	}
+	if d.Awake, err = parseMin(s.Wake); err != nil {
+		return err
+	}
+	return nil
+}
