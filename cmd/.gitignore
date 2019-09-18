@@ -1,3 +1,2 @@
 args.txt
-args.json
-tokens_payload.json
+*.json
