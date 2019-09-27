@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -49,8 +50,38 @@ func ParseFlags(name string) (Args, error) {
 }
 
 type Tokens struct {
-	Access  string `json:"access_token"`
-	Refresh string `json:"refresh_token"`
+	Access     string
+	Refresh    string
+	Expiration time.Time
+}
+
+func (t *Tokens) UnmarshalJSON(data []byte) error {
+	s := struct {
+		Access_token  string
+		Refresh_token string
+		Expires_in    uint
+		Errors        []map[string]string
+	}{}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	// Token fields are absent when error fields are present, and vice-versa.
+	if len(s.Errors) > 0 {
+		m, ok := s.Errors[0]["message"]
+		if !ok {
+			return fmt.Errorf("%+v", s.Errors[0])
+		}
+		return errors.New(m)
+	}
+	t.Access = s.Access_token
+	t.Refresh = s.Refresh_token
+	d, err := parseSec(s.Expires_in)
+	if err != nil {
+		ss := "could not parse expiration seconds %v to time: %v"
+		return fmt.Errorf(ss, s.Expires_in, err)
+	}
+	t.Expiration = time.Now().Add(d)
+	return nil
 }
 
 func FetchTokensPayload(id, secret, refreshToken string) ([]byte, error) {
@@ -92,18 +123,11 @@ func FetchTokens(id, secret, refreshToken string) (Tokens, error) {
 	if err != nil {
 		return Tokens{}, err
 	}
-	u := struct {
-		Access_token  string
-		Refresh_token string
-		Errors        []map[string]string
-	}{}
-	if err := json.Unmarshal(b, &u); err != nil {
-		return Tokens{}, err
+	t := Tokens{}
+	if err := json.Unmarshal(b, &t); err != nil {
+		return t, err
 	}
-	if len(u.Errors) > 0 {
-		return Tokens{}, fmt.Errorf(u.Errors[0]["message"])
-	}
-	return Tokens{Access: u.Access_token, Refresh: u.Refresh_token}, nil
+	return t, nil
 }
 
 func FetchProfile(authToken string) (respBody []byte, err error) {
@@ -176,6 +200,10 @@ func (s *Summary) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	return nil
+}
+
+func parseSec(i uint) (time.Duration, error) {
+	return time.ParseDuration(fmt.Sprintf("%vs", i))
 }
 
 func parseMin(i uint) (time.Duration, error) {

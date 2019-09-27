@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -15,12 +16,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	t, err := bitfit.FetchTokensPayload(*args.ClientID, *args.Secret, *args.RefreshToken)
+	t, err := bitfit.FetchTokens(*args.ClientID, *args.Secret, *args.RefreshToken)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := ioutil.WriteFile("tokens_payload.json", t, 0644); err != nil {
+	b, err := json.Marshal(t)
+	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(string(t))
+	if err := ioutil.WriteFile("tokens.json", b, 0644); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%+v\n", t)
 }

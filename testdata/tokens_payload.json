@@ -1,0 +1,8 @@
+{
+    "access_token": "foo",
+    "expires_in": 28800,
+    "refresh_token": "bar",
+    "scope": "settings weight social nutrition profile location activity heartrate sleep",
+    "token_type": "Bearer",
+    "user_id": "BAZ"
+}
