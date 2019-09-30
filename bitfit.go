@@ -17,9 +17,10 @@ import (
 )
 
 type Args struct {
-	ClientID     *string
-	Secret       *string
-	RefreshToken *string
+	ClientID       *string
+	Secret         *string
+	RefreshToken   *string // Deprecated
+	TokensFilepath *string
 }
 
 func ParseFlags(name string) (Args, error) {
@@ -28,6 +29,7 @@ func ParseFlags(name string) (Args, error) {
 		fs.String("id", "", "the OAuth2 API client ID"),
 		fs.String("secret", "", "the OAuth2 API client secret"),
 		fs.String("refreshtoken", "", "a refresh token previously obtained via the fitbit API (or web dashboard)"),
+		fs.String("tokensfile", "", "a JSON file of access and refresh tokens previous obtained via fitbit API and serialized via the bitfit library"),
 	}
 	_ = fs.String("config", "", "config file (optional)")
 	err := ff.Parse(fs, os.Args[1:],
@@ -43,8 +45,8 @@ func ParseFlags(name string) (Args, error) {
 		err = fmt.Errorf("no client ID provided\n")
 	case *a.Secret == "":
 		err = fmt.Errorf("no client secret provided\n")
-	case *a.RefreshToken == "":
-		err = fmt.Errorf("no refresh token provided\n")
+	case *a.RefreshToken == "" && *a.TokensFilepath == "":
+		err = fmt.Errorf("no refresh token or tokens filepath provided\n")
 	}
 	return a, err
 }
