@@ -247,8 +247,7 @@ func (c *Client) saveTokens() error {
 	return nil
 }
 
-func (c *Client) Profile() (respBody []byte, err error) {
-	url := "https://api.fitbit.com/1/user/-/profile.json"
+func (c *Client) fetch(url string) (respBody []byte, err error) {
 	resp, err := c.Get(url)
 	if err != nil {
 		return []byte{}, err
@@ -261,6 +260,17 @@ func (c *Client) Profile() (respBody []byte, err error) {
 	return format(b)
 }
 
+func (c *Client) FetchProfile() (respBody []byte, err error) {
+	url := "https://api.fitbit.com/1/user/-/profile.json"
+	return c.fetch(url)
+}
+
+func (c *Client) FetchSleepLog(from time.Time) (respBody []byte, err error) {
+	s := "https://api.fitbit.com/1.2/user/-/sleep/date/%v.json"
+	url := fmt.Sprintf(s, from.Format("2006-01-02"))
+	return c.fetch(url)
+}
+
 var DefaultClient = &Client{}
 
 func Init(id, secret, tokensFilepath string) error {
@@ -271,35 +281,22 @@ func Init(id, secret, tokensFilepath string) error {
 	return nil
 }
 
-func Profile() (respBody []byte, err error) {
+func FetchProfile() (respBody []byte, err error) {
 	if !DefaultClient.initialized {
 		return errorInit()
 	}
-	return DefaultClient.Profile()
+	return DefaultClient.FetchProfile()
+}
+
+func FetchSleepLog(from time.Time) (respBody []byte, err error) {
+	if !DefaultClient.initialized {
+		return errorInit()
+	}
+	return DefaultClient.FetchSleepLog(from)
 }
 
 func errorInit() (empty []byte, err error) {
 	return []byte{}, errors.New("the package's init func must be called first")
-}
-
-func FetchSleepLog(authToken string, t time.Time) (respBody []byte, err error) {
-	s := "https://api.fitbit.com/1.2/user/-/sleep/date/%v.json"
-	url := fmt.Sprintf(s, t.Format("2006-01-02"))
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return []byte{}, err
-	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", authToken))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return []byte{}, err
-	}
-	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return []byte{}, err
-	}
-	return format(b)
 }
 
 type SleepLog struct {

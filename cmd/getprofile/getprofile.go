@@ -17,7 +17,7 @@ func main() {
 	if err := bitfit.Init(*args.ClientID, *args.Secret, *args.TokensFilepath); err != nil {
 		log.Fatal(err)
 	}
-	b, err := bitfit.Profile()
+	b, err := bitfit.FetchProfile()
 	if err != nil {
 		log.Fatal(err)
 	}

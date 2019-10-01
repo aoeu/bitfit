@@ -16,11 +16,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	tokens, err := bitfit.FetchTokens(*args.ClientID, *args.Secret, *args.RefreshToken)
-	if err != nil {
+	if err := bitfit.Init(*args.ClientID, *args.Secret, *args.TokensFilepath); err != nil {
 		log.Fatal(err)
 	}
-	b, err := bitfit.FetchSleepLog(tokens.Access, time.Now().AddDate(0, 0, -1))
+	b, err := bitfit.FetchSleepLog(time.Now().AddDate(0, 0, -1))
 	if err != nil {
 		log.Fatal(err)
 	}
