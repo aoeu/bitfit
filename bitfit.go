@@ -155,6 +155,110 @@ func FetchTokens(id, secret, refreshToken string) (Tokens, error) {
 	return t, nil
 }
 
+type Client struct {
+	*http.Client
+	Tokens
+	id             string
+	secret         string
+	tokensFilepath string
+}
+
+func NewClient(id, secret, tokensFilepath string) *Client {
+	c := &Client{
+		id:             id,
+		secret:         secret,
+		tokensFilepath: tokensFilepath,
+	}
+	// Effectively duplicate http.DefaultClient but with an overridden Transport.RoundTrip func.
+	c.Client = &http.Client{
+		Transport: c,
+	}
+	return c
+}
+
+func (c *Client) Init() error {
+	if c.tokensFilepath == "" {
+		s := "filepath of an existing token (serialized as JSON) must be set on Client"
+		return fmt.Errorf(s)
+	}
+	b, err := ioutil.ReadFile(c.tokensFilepath)
+	if err != nil {
+		s := "filepath of tokens '%v' could not be read: %v"
+		return fmt.Errorf(s, c.tokensFilepath, err)
+	}
+	var t Tokens
+	if err := json.Unmarshal(b, &t); err != nil {
+		s := "could not unmarshal tokens at filepath '%v': %v"
+		return fmt.Errorf(s, c.tokensFilepath, err)
+	}
+	c.Tokens = t
+	if c.Expiration.Before(time.Now()) {
+		if err := c.refreshTokens(); err != nil {
+			s := "could not refresh expired tokens loaded from '%v' during Init func: %v"
+			return fmt.Errorf(s, err)
+		}
+	}
+	return nil
+}
+
+func (c *Client) RoundTrip(req *http.Request) (*http.Response, error) {
+	if c.Expiration.Before(time.Now()) {
+		if err := c.refreshTokens(); err != nil {
+			s := "could not refresh expired tokens before request in round trip function: %v"
+			return nil, fmt.Errorf(s, err)
+		}
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", c.Access))
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err == nil {
+		err = c.refreshTokens()
+		if err != nil {
+			s := "could not refresh tokens after request in round trip function: %v"
+			return nil, fmt.Errorf(s, err)
+		}
+	}
+	return resp, err
+}
+
+func (c *Client) refreshTokens() error {
+	t, err := FetchTokens(c.id, c.secret, c.Refresh)
+	if err != nil {
+		return err
+	}
+	c.Tokens = t
+	return c.saveTokens()
+}
+
+func (c *Client) saveTokens() error {
+	b, err := json.Marshal(c.Tokens)
+	if err != nil {
+		return fmt.Errorf("could not serialize tokens: %v", err)
+	}
+	b, err = format(b)
+	if err != nil {
+		return fmt.Errorf("could not format serialized tokens: %v", err)
+	}
+	if err := ioutil.WriteFile(c.tokensFilepath, b, 0644); err != nil {
+		s := "could not save tokens to file '%v': %v"
+		return fmt.Errorf(s, c.tokensFilepath, err)
+	}
+	return nil
+}
+
+func (c *Client) GetProfile() (respBody []byte, err error) {
+	url := "https://api.fitbit.com/1/user/-/profile.json"
+	resp, err := c.Get(url)
+	if err != nil {
+		return []byte{}, err
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return []byte{}, err
+	}
+	return format(b)
+}
+
 func FetchProfile(authToken string) (respBody []byte, err error) {
 	url := "https://api.fitbit.com/1/user/-/profile.json"
 	req, err := http.NewRequest("GET", url, nil)
