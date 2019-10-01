@@ -57,12 +57,20 @@ type Tokens struct {
 	Expiration time.Time
 }
 
+// UnmarshalJSON accepts a JSON payload from the REST API
+// xor a marshalled JSON payload of this package's Tokens type and
+// deserializes the fields of either into a Tokens instance.
 func (t *Tokens) UnmarshalJSON(data []byte) error {
 	s := struct {
+		// Fitbit API response fields
 		Access_token  string
 		Refresh_token string
 		Expires_in    uint
 		Errors        []map[string]string
+		// Tokens fields
+		Access     string
+		Refresh    string
+		Expiration time.Time
 	}{}
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
@@ -75,14 +83,29 @@ func (t *Tokens) UnmarshalJSON(data []byte) error {
 		}
 		return errors.New(m)
 	}
-	t.Access = s.Access_token
-	t.Refresh = s.Refresh_token
-	d, err := parseSec(s.Expires_in)
-	if err != nil {
-		ss := "could not parse expiration seconds %v to time: %v"
-		return fmt.Errorf(ss, s.Expires_in, err)
+	switch {
+	case s.Access != "":
+		t.Access = s.Access
+	case s.Access_token != "":
+		t.Access = s.Access_token
 	}
-	t.Expiration = time.Now().Add(d)
+	switch {
+	case s.Refresh != "":
+		t.Refresh = s.Refresh
+	case s.Refresh_token != "":
+		t.Refresh = s.Refresh_token
+	}
+	switch {
+	case s.Expiration != time.Time{}:
+		t.Expiration = s.Expiration
+	case s.Expires_in != 0:
+		d, err := parseSec(s.Expires_in)
+		if err != nil {
+			ss := "could not parse expiration seconds %v to time: %v"
+			return fmt.Errorf(ss, s.Expires_in, err)
+		}
+		t.Expiration = time.Now().Add(d)
+	}
 	return nil
 }
 

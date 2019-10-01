@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestUnmarshallingTokens(t *testing.T) {
+func TestUnmarshallingTokensPayload(t *testing.T) {
 	b, err := ioutil.ReadFile("testdata/tokens_payload.json")
 	if err != nil {
 		t.Fatal(err)
@@ -22,6 +22,32 @@ func TestUnmarshallingTokens(t *testing.T) {
 	}
 	f, s := "Mon Jan 2 15:04:05 -0700 MST 2006", "expected %v but received %v"
 	if e, a := time.Now().Add(d).Format(f), tt.Expiration.Format(f); e != a {
+		t.Fatalf(s, e, a)
+	}
+	if e, a := "foo", tt.Access; e != a {
+		t.Fatalf(s, e, a)
+	}
+	if e, a := "bar", tt.Refresh; e != a {
+		t.Fatal(s, e, a)
+	}
+}
+
+func TestUnmarshallingTokens(t *testing.T) {
+	b, err := ioutil.ReadFile("testdata/tokens.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tt := new(Tokens)
+	if err := json.Unmarshal(b, &tt); err != nil {
+		t.Fatal(err)
+	}
+
+	f, s := "Mon Jan 2 15:04:05 -0700 MST 2006", "expected %v but received %v"
+	expiration, err := time.Parse(f, "Tue Oct 1 08:28:25 -0400 EDT 2019")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e, a := expiration.Format(f), tt.Expiration.Format(f); e != a {
 		t.Fatalf(s, e, a)
 	}
 	if e, a := "foo", tt.Access; e != a {
