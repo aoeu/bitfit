@@ -23,32 +23,44 @@ type Args struct {
 	TokensFilepath *string
 }
 
-func ParseFlags(name string) (Args, error) {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	a := Args{
+func ArgsWithFlagSet(fs *flag.FlagSet) Args {
+	_ = fs.String("config", "", "config file (optional)")
+	return Args{
 		fs.String("id", "", "the OAuth2 API client ID"),
 		fs.String("secret", "", "the OAuth2 API client secret"),
 		fs.String("refreshtoken", "", "a refresh token previously obtained via the fitbit API (or web dashboard)"),
 		fs.String("tokensfile", "", "a JSON file of access and refresh tokens previous obtained via fitbit API and serialized via the bitfit library"),
 	}
-	_ = fs.String("config", "", "config file (optional)")
-	err := ff.Parse(fs, os.Args[1:],
+}
+
+func (a Args) Validate() error {
+	switch {
+	case *a.ClientID == "":
+		return fmt.Errorf("no client ID provided\n")
+	case *a.Secret == "":
+		return fmt.Errorf("no client secret provided\n")
+	case *a.RefreshToken == "" && *a.TokensFilepath == "":
+		return fmt.Errorf("no refresh token or tokens filepath provided\n")
+	}
+	return nil
+}
+
+func ParseFlagSet(fs *flag.FlagSet) error {
+	return ff.Parse(fs, os.Args[1:],
 		ff.WithConfigFileFlag("config"),
 		ff.WithConfigFileParser(ff.JSONParser),
 		ff.WithEnvVarPrefix("BIT_FIT"),
 	)
+}
+
+func ParseFlags(name string) (Args, error) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	a := ArgsWithFlagSet(fs)
+	err := ParseFlagSet(fs)
 	if err != nil {
 		return a, err
 	}
-	switch {
-	case *a.ClientID == "":
-		err = fmt.Errorf("no client ID provided\n")
-	case *a.Secret == "":
-		err = fmt.Errorf("no client secret provided\n")
-	case *a.RefreshToken == "" && *a.TokensFilepath == "":
-		err = fmt.Errorf("no refresh token or tokens filepath provided\n")
-	}
-	return a, err
+	return a, a.Validate()
 }
 
 type Tokens struct {
