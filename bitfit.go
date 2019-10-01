@@ -161,6 +161,7 @@ type Client struct {
 	id             string
 	secret         string
 	tokensFilepath string
+	initialized    bool
 }
 
 func NewClient(id, secret, tokensFilepath string) *Client {
@@ -198,6 +199,7 @@ func (c *Client) Init() error {
 			return fmt.Errorf(s, err)
 		}
 	}
+	c.initialized = true
 	return nil
 }
 
@@ -245,7 +247,7 @@ func (c *Client) saveTokens() error {
 	return nil
 }
 
-func (c *Client) GetProfile() (respBody []byte, err error) {
+func (c *Client) Profile() (respBody []byte, err error) {
 	url := "https://api.fitbit.com/1/user/-/profile.json"
 	resp, err := c.Get(url)
 	if err != nil {
@@ -259,23 +261,25 @@ func (c *Client) GetProfile() (respBody []byte, err error) {
 	return format(b)
 }
 
-func FetchProfile(authToken string) (respBody []byte, err error) {
-	url := "https://api.fitbit.com/1/user/-/profile.json"
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return []byte{}, err
+var DefaultClient = &Client{}
+
+func Init(id, secret, tokensFilepath string) error {
+	DefaultClient = NewClient(id, secret, tokensFilepath)
+	if err := DefaultClient.Init(); err != nil {
+		return fmt.Errorf("could not initalize package's default client: %v", err)
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", authToken))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return []byte{}, err
+	return nil
+}
+
+func Profile() (respBody []byte, err error) {
+	if !DefaultClient.initialized {
+		return errorInit()
 	}
-	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return []byte{}, err
-	}
-	return b, nil
+	return DefaultClient.Profile()
+}
+
+func errorInit() (empty []byte, err error) {
+	return []byte{}, errors.New("the package's init func must be called first")
 }
 
 func FetchSleepLog(authToken string, t time.Time) (respBody []byte, err error) {

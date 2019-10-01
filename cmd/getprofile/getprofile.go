@@ -14,11 +14,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	c := bitfit.NewClient(*args.ClientID, *args.Secret, *args.TokensFilepath)
-	if err := c.Init(); err != nil {
+	if err := bitfit.Init(*args.ClientID, *args.Secret, *args.TokensFilepath); err != nil {
 		log.Fatal(err)
 	}
-	b, err := c.GetProfile()
+	b, err := bitfit.Profile()
 	if err != nil {
 		log.Fatal(err)
 	}
