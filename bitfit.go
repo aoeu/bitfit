@@ -312,14 +312,28 @@ func errorInit() (empty []byte, err error) {
 }
 
 type SleepLog struct {
-	Summary *Summary `json:"summary"`
+	Summary  *Summary
+	Sessions []Session
+}
+
+func (s *SleepLog) UnmarshalJSON(data []byte) error {
+	j := struct {
+		Summary *Summary
+		Sleep   []Session
+	}{}
+	if err := json.Unmarshal(data, &j); err != nil {
+		return err
+	}
+	s.Summary = j.Summary
+	s.Sessions = j.Sleep
+	return nil
 }
 
 type Summary struct {
-	DurationPerStage *DurationPerStage `json:"stages"`
-	DurationAsleep   time.Duration     `json:"totalMinutesAsleep"`
-	NumSleepRecords  uint              `json:"totalSleepRecords"`
-	DurationInBed    time.Duration     `json:"totalTimeInBed"`
+	DurationPerStage *DurationPerStage
+	DurationAsleep   time.Duration
+	NumSleepRecords  uint
+	DurationInBed    time.Duration
 }
 
 func (s *Summary) UnmarshalJSON(data []byte) error {
@@ -383,4 +397,51 @@ func (d *DurationPerStage) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	return nil
+}
+
+type Session struct {
+	Start     time.Time
+	End       time.Time
+	Length    time.Duration
+	IsPrimary bool
+}
+
+func (s *Session) UnmarshalJSON(data []byte) (err error) {
+	j := struct {
+		StartTime   string
+		EndTime     string
+		Duration    uint
+		IsMainSleep bool
+	}{}
+	if err := json.Unmarshal(data, &j); err != nil {
+		return err
+	}
+	s.IsPrimary = j.IsMainSleep
+	if s.Start, err = parseInNYC(j.StartTime); err != nil {
+		return err
+	} else if s.End, err = parseInNYC(j.EndTime); err != nil {
+		return err
+	} else if s.Length, err = parseSec(j.Duration); err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func parseInNYC(s string) (time.Time, error) {
+	return time.ParseInLocation(zonelessTimeFmt, s, newYork)
+}
+
+var (
+	newYork         *time.Location
+	zonelessTimeFmt = "2006-01-02T15:04:05.000"
+)
+
+func init() {
+	var err error
+	loc := "America/New_York"
+	if newYork, err = time.LoadLocation(loc); err != nil {
+		err = fmt.Errorf("could not load location %v: %v", loc, err)
+		panic(err)
+	}
 }

@@ -58,7 +58,7 @@ func TestUnmarshallingTokens(t *testing.T) {
 	}
 }
 
-func TestUnmarshallingSleepLog(t *testing.T) {
+func TestUnmarshallingSleepSummary(t *testing.T) {
 	b, err := ioutil.ReadFile("testdata/sleep_log_payload_20190916.json")
 	if err != nil {
 		t.Fatal(err)
@@ -93,5 +93,44 @@ func TestUnmarshallingSleepLog(t *testing.T) {
 	}
 	if e, a := uint(1), s.Summary.NumSleepRecords; e != a {
 		t.Fatalf("expected %+v but received %+v", e, a)
+	}
+}
+
+func TestUnmarshalSleepSession(t *testing.T) {
+	b, err := ioutil.ReadFile("testdata/sleep_log_payload_20190916.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := new(SleepLog)
+	if err := json.Unmarshal(b, s); err != nil {
+		t.Fatal(err)
+	}
+	if e, a := 1, len(s.Sessions); e != a {
+		t.Fatalf("expected %v session(s) but there was %v", e, a)
+	}
+	var (
+		newYork *time.Location
+		f       = "2006-01-02T15:04:05.000"
+		tt      time.Time
+		d       time.Duration
+		errFmt  = "expected %v but received %v"
+	)
+	if newYork, err = time.LoadLocation("America/New_York"); err != nil {
+		t.Fatal(err)
+	}
+	if tt, err = time.ParseInLocation(f, "2019-09-16T09:09:30.000", newYork); err != nil {
+		t.Fatal(err)
+	}
+	if e, a := tt.String(), s.Sessions[0].End.String(); e != a {
+		t.Fatalf(errFmt, e, a)
+	}
+	if e, a := true, s.Sessions[0].IsPrimary; e != a {
+		t.Fatalf(errFmt, e, a)
+	}
+	if d, err = time.ParseDuration("25260000s"); err != nil {
+		t.Fatal(err)
+	}
+	if e, a := d, s.Sessions[0].Length; e != a {
+		t.Fatalf(errFmt, e, a)
 	}
 }
