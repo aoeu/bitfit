@@ -217,7 +217,7 @@ func (c *Client) Init() error {
 }
 
 func (c *Client) RoundTrip(req *http.Request) (*http.Response, error) {
-	if c.Expiration.Before(time.Now()) {
+	if c.shouldRefreshTokens() {
 		if err := c.refreshTokens(); err != nil {
 			s := "could not refresh expired tokens before request in round trip function: %v"
 			return nil, fmt.Errorf(s, err)
@@ -233,6 +233,10 @@ func (c *Client) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 	return resp, err
+}
+
+func (c *Client) shouldRefreshTokens() bool {
+	return c.Expiration.Before(time.Now().Add(10 * time.Minute))
 }
 
 func (c *Client) refreshTokens() error {
