@@ -121,16 +121,38 @@ func TestUnmarshalSleepSession(t *testing.T) {
 	if tt, err = time.ParseInLocation(f, "2019-09-16T09:09:30.000", newYork); err != nil {
 		t.Fatal(err)
 	}
-	if e, a := tt.String(), s.Sessions[0].End.String(); e != a {
+	sess := s.Sessions[0]
+	if e, a := tt.String(), sess.End.String(); e != a {
 		t.Fatalf(errFmt, e, a)
 	}
-	if e, a := true, s.Sessions[0].IsPrimary; e != a {
+	if e, a := true, sess.IsPrimary; e != a {
 		t.Fatalf(errFmt, e, a)
 	}
 	if d, err = time.ParseDuration("25260000s"); err != nil {
 		t.Fatal(err)
 	}
-	if e, a := d, s.Sessions[0].Length; e != a {
+	if e, a := d, sess.Length; e != a {
 		t.Fatalf(errFmt, e, a)
 	}
+	if e, a := 52, len(sess.Observations); e != a {
+		t.Fatalf(errFmt, e, a)
+	}
+	for i := len(sess.Observations) - 1; i > 1; i-- {
+		m, n := sess.Observations[i].Start, sess.Observations[i-1].Start
+		if m.Before(n) {
+			s := "expected '%v' (index %v) to be earlier in time than '%v' (index '%v')"
+			t.Fatalf(s, n, i-1, m, i)
+		}
+	}
+	o := sess.Observations[0]
+	if tt, err = time.ParseInLocation(f, "2019-09-16T02:08:00.000", newYork); err != nil {
+		t.Fatal(err)
+	}
+	if e, a := tt.String(), o.Start.String(); e != a {
+		t.Fatalf(errFmt, e, a)
+	}
+	if e, a := 0.4, o.Duration.Hours(); e != a {
+		t.Fatalf(errFmt, e, a)
+	}
+	// TODO(aoeu): Typed constants and test for Type field.
 }

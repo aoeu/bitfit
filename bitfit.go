@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -400,10 +401,11 @@ func (d *DurationPerStage) UnmarshalJSON(data []byte) error {
 }
 
 type Session struct {
-	Start     time.Time
-	End       time.Time
-	Length    time.Duration
-	IsPrimary bool
+	Start        time.Time
+	End          time.Time
+	Length       time.Duration
+	IsPrimary    bool
+	Observations ByStartTime
 }
 
 func (s *Session) UnmarshalJSON(data []byte) (err error) {
@@ -412,6 +414,10 @@ func (s *Session) UnmarshalJSON(data []byte) (err error) {
 		EndTime     string
 		Duration    uint
 		IsMainSleep bool
+		Levels      struct {
+			Data      []Observation
+			ShortData []Observation
+		}
 	}{}
 	if err := json.Unmarshal(data, &j); err != nil {
 		return err
@@ -424,6 +430,10 @@ func (s *Session) UnmarshalJSON(data []byte) (err error) {
 	} else if s.Length, err = parseSec(j.Duration); err != nil {
 		return err
 	}
+	s.Observations = make(ByStartTime, 0)
+	s.Observations = append(s.Observations, j.Levels.Data...)
+	s.Observations = append(s.Observations, j.Levels.ShortData...)
+	sort.Sort(s.Observations)
 	return nil
 
 }
@@ -445,3 +455,35 @@ func init() {
 		panic(err)
 	}
 }
+
+type Observation struct {
+	Start    time.Time
+	Duration time.Duration
+	Type     string // TODO(aoeu): Typed constants
+}
+
+func (o *Observation) UnmarshalJSON(data []byte) error {
+	j := struct {
+		Datetime string
+		Level    string
+		Seconds  uint
+	}{}
+	if err := json.Unmarshal(data, &j); err != nil {
+		return err
+	}
+	var err error
+	o.Type = j.Level
+	if o.Start, err = parseInNYC(j.Datetime); err != nil {
+		return err
+	}
+	if o.Duration, err = parseSec(j.Seconds); err != nil {
+		return err
+	}
+	return nil
+}
+
+type ByStartTime []Observation
+
+func (b ByStartTime) Len() int           { return len(b) }
+func (b ByStartTime) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+func (b ByStartTime) Less(i, j int) bool { return b[i].Start.Before(b[j].Start) }
