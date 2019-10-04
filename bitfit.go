@@ -225,13 +225,6 @@ func (c *Client) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", c.Access))
 	resp, err := http.DefaultTransport.RoundTrip(req)
-	if err == nil {
-		err = c.refreshTokens()
-		if err != nil {
-			s := "could not refresh tokens after request in round trip function: %v"
-			return nil, fmt.Errorf(s, err)
-		}
-	}
 	return resp, err
 }
 
