@@ -372,10 +372,10 @@ func parseMin(i uint) (time.Duration, error) {
 }
 
 type DurationPerStage struct {
-	Deep  time.Duration `json:"deep"`
-	Light time.Duration `json:"light"`
-	REM   time.Duration `json:"rem"`
-	Awake time.Duration `json:"wake"`
+	Deep  time.Duration
+	Light time.Duration
+	REM   time.Duration
+	Awake time.Duration
 }
 
 func (d *DurationPerStage) UnmarshalJSON(data []byte) error {
