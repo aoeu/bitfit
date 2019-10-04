@@ -154,5 +154,7 @@ func TestUnmarshalSleepSession(t *testing.T) {
 	if e, a := 0.4, o.Duration.Hours(); e != a {
 		t.Fatalf(errFmt, e, a)
 	}
-	// TODO(aoeu): Typed constants and test for Type field.
+	if e, a := Awake, o.SleepStage; e != a {
+		t.Fatalf(errFmt, e, a)
+	}
 }

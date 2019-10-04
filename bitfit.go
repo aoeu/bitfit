@@ -460,10 +460,35 @@ func init() {
 	}
 }
 
+type SleepStage string
+
+const (
+	Awake   SleepStage = "awake"
+	Light   SleepStage = "light"
+	Deep    SleepStage = "deep"
+	REM     SleepStage = "REM"
+	Unknown SleepStage = "unknown"
+)
+
+func sleepStage(s string) SleepStage {
+	switch s {
+	case "wake":
+		return Awake
+	case "light":
+		return Light
+	case "deep":
+		return Deep
+	case "rem":
+		return REM
+	default:
+		return Unknown
+	}
+}
+
 type Observation struct {
-	Start    time.Time
-	Duration time.Duration
-	Type     string // TODO(aoeu): Typed constants
+	Start time.Time
+	time.Duration
+	SleepStage
 }
 
 func (o *Observation) UnmarshalJSON(data []byte) error {
@@ -476,7 +501,7 @@ func (o *Observation) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	var err error
-	o.Type = j.Level
+	o.SleepStage = sleepStage(j.Level)
 	if o.Start, err = parseInNYC(j.Datetime); err != nil {
 		return err
 	}
