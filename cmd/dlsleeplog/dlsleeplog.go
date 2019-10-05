@@ -19,13 +19,13 @@ func main() {
 		from *string
 		to   *string
 		as   *string
-		in   *string
+		into *string
 	}{
 		bitfit.ArgsWithFlagSet(fs),
 		fs.String("from", "", "the date download a sleep log from"),
 		fs.String("to", "", "the date to download a range of sleep logs until (inclusive"),
 		fs.String("as", "sleep_log_payload", "the filename template to use for saved payloads"),
-		fs.String("in", ".", "the path in which to write files of payloads to save"),
+		fs.String("into", ".", "the path in which to write files of payloads to save"),
 	}
 
 	if err := bitfit.ParseFlagSet(fs); err != nil {
@@ -35,11 +35,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	p, err := filepath.Abs(*args.in)
+	p, err := filepath.Abs(*args.into)
 	if err != nil {
-		log.Fatalf("could not get absolute path of %v: %v", *args.in, err)
+		log.Fatalf("could not get absolute path of %v: %v", *args.into, err)
 	}
-	*args.in = p
+	*args.into = p
 
 	if *args.from == "" {
 		fmt.Fprintf(os.Stderr, "must provide a date in as the '-from' argument")
@@ -69,7 +69,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		s := fmt.Sprintf("%v/%v_%v.json", *args.in, *args.as, t.Format(layout))
+		s := fmt.Sprintf("%v/%v_%v.json", *args.into, *args.as, t.Format(layout))
 		if err := ioutil.WriteFile(s, b, 0644); err != nil {
 			err = fmt.Errorf("could not write to file '%v': %v", s, err)
 			log.Fatal(err)
