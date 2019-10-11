@@ -1,2 +1,4 @@
 args.txt
 *.json
+cert.txt
+key.txt

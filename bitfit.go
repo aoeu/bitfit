@@ -64,6 +64,43 @@ func ParseFlags(name string) (Args, error) {
 	return a, a.Validate()
 }
 
+type ProxyArgs struct {
+	BaseURL  *string
+	Username *string
+	Password *string
+}
+
+// TODO(aoeu): Require caller to set config, i.e. `_ = fs.String("config", "", "config file (optional)")`
+func ProxyArgsWithFlagSet(fs *flag.FlagSet) ProxyArgs {
+	return ProxyArgs{
+		fs.String("url", "", "the base URL of the proxy server"),
+		fs.String("username", "", "A username required on client requests for HTTP basic auth, as per RFC 7617"),
+		fs.String("password", "", "A password required on client requests for HTTP basic auth, as per RFC 7617"),
+	}
+}
+
+func (a ProxyArgs) Validate() error {
+	switch {
+	case *a.BaseURL == "":
+		return fmt.Errorf("no proxy URL\n")
+	case *a.Username == "":
+		return fmt.Errorf("no username provided\n")
+	case *a.Password == "":
+		return fmt.Errorf("no password provided\n")
+	}
+	return nil
+}
+
+func ParseProxyFlags(name string) (ProxyArgs, error) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	a := ProxyArgsWithFlagSet(fs)
+	err := ParseFlagSet(fs)
+	if err != nil {
+		return a, err
+	}
+	return a, a.Validate()
+}
+
 type Tokens struct {
 	Access     string
 	Refresh    string
@@ -126,7 +163,7 @@ func FetchTokensPayload(id, secret, refreshToken string) ([]byte, error) {
 	s := fmt.Sprintf("%v:%v", id, secret)
 	s = fmt.Sprintf("Basic %v", base64.StdEncoding.EncodeToString([]byte(s)))
 	payload := fmt.Sprintf("grant_type=refresh_token&refresh_token=%v", refreshToken)
-	url := "https://api.fitbit.com/oauth2/token"
+	url := apiURL("oauth2/token")
 
 	req, err := http.NewRequest("POST", url, strings.NewReader(payload))
 	if err != nil {
@@ -145,6 +182,12 @@ func FetchTokensPayload(id, secret, refreshToken string) ([]byte, error) {
 		return []byte{}, err
 	}
 	return format(b)
+}
+
+var BaseURL = "https://api.fitbit.com"
+
+func apiURL(uri string) string {
+	return fmt.Sprintf("%s/%s", BaseURL, uri)
 }
 
 func format(payload []byte) ([]byte, error) {
@@ -175,6 +218,7 @@ type Client struct {
 	secret         string
 	tokensFilepath string
 	initialized    bool
+	authorizer     func(r *http.Request) error
 }
 
 func NewClient(id, secret, tokensFilepath string) *Client {
@@ -187,6 +231,20 @@ func NewClient(id, secret, tokensFilepath string) *Client {
 	c.Client = &http.Client{
 		Transport: c,
 	}
+	c.authorizer = c.authorizeWithOauth2
+	return c
+}
+
+func NewProxyClient(username, password string) *Client {
+	c := &Client{
+		id:     username,
+		secret: password,
+	}
+	c.Client = &http.Client{
+		Transport: c,
+	}
+	c.authorizer = c.authorizeWithBasicAuth
+	c.initialized = true
 	return c
 }
 
@@ -217,15 +275,26 @@ func (c *Client) Init() error {
 }
 
 func (c *Client) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := c.authorizer(req); err != nil {
+		return nil, err
+	}
+	return http.DefaultTransport.RoundTrip(req)
+}
+
+func (c *Client) authorizeWithOauth2(req *http.Request) error {
 	if c.shouldRefreshTokens() {
 		if err := c.refreshTokens(); err != nil {
 			s := "could not refresh expired tokens before request in round trip function: %v"
-			return nil, fmt.Errorf(s, err)
+			return fmt.Errorf(s, err)
 		}
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", c.Access))
-	resp, err := http.DefaultTransport.RoundTrip(req)
-	return resp, err
+	return nil
+}
+
+func (c *Client) authorizeWithBasicAuth(req *http.Request) error {
+	req.SetBasicAuth(c.id, c.secret)
+	return nil
 }
 
 func (c *Client) shouldRefreshTokens() bool {
@@ -271,12 +340,12 @@ func (c *Client) fetch(url string) (respBody []byte, err error) {
 }
 
 func (c *Client) FetchProfile() (respBody []byte, err error) {
-	url := "https://api.fitbit.com/1/user/-/profile.json"
+	url := apiURL("1/user/-/profile.json")
 	return c.fetch(url)
 }
 
 func (c *Client) FetchSleepLog(from time.Time) (respBody []byte, err error) {
-	s := "https://api.fitbit.com/1.2/user/-/sleep/date/%v.json"
+	s := apiURL("1.2/user/-/sleep/date/%v.json")
 	url := fmt.Sprintf(s, from.Format("2006-01-02"))
 	return c.fetch(url)
 }
@@ -288,6 +357,12 @@ func Init(id, secret, tokensFilepath string) error {
 	if err := DefaultClient.Init(); err != nil {
 		return fmt.Errorf("could not initalize package's default client: %v", err)
 	}
+	return nil
+}
+
+func InitProxy(baseURL, username, password string) error {
+	DefaultClient = NewProxyClient(username, password)
+	BaseURL = baseURL
 	return nil
 }
 
