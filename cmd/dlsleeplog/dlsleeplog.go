@@ -10,18 +10,19 @@ import (
 	"time"
 
 	"github.com/aoeu/bitfit"
+	"github.com/aoeu/bitfit/proxy"
 )
 
 func main() {
 	fs := flag.NewFlagSet("wat", flag.ContinueOnError)
 	args := struct {
-		bitfit.Args
+		proxy.Args
 		from *string
 		to   *string
 		as   *string
 		into *string
 	}{
-		bitfit.ArgsWithFlagSet(fs, ""),
+		proxy.ArgsWithFlagSet(fs, ""),
 		fs.String("from", "", "the date download a sleep log from"),
 		fs.String("to", "", "the date to download a range of sleep logs until (inclusive"),
 		fs.String("as", "sleep_log_payload", "the filename template to use for saved payloads"),
@@ -59,7 +60,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := bitfit.Init(*args.ClientID, *args.Secret, *args.TokensFilepath); err != nil {
+	if err := proxy.Init(*args.BaseURL, *args.Username, *args.Password); err != nil {
 		log.Fatal(err)
 	}
 
