@@ -21,7 +21,7 @@ func main() {
 		as   *string
 		into *string
 	}{
-		bitfit.ArgsWithFlagSet(fs),
+		bitfit.ArgsWithFlagSet(fs, ""),
 		fs.String("from", "", "the date download a sleep log from"),
 		fs.String("to", "", "the date to download a range of sleep logs until (inclusive"),
 		fs.String("as", "sleep_log_payload", "the filename template to use for saved payloads"),

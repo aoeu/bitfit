@@ -19,29 +19,56 @@ var (
 	password string
 )
 
-func main() {
+type Args struct {
+	bitfit.Args
+	username     *string
+	password     *string
+	certFilepath *string
+	keyFilepath  *string
+	port         *string
+	useFCGI      *bool
+}
+
+func setupFlagsAndArgs(configFilepath string) (*flag.FlagSet, Args) {
 	fs := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-	args := struct {
-		bitfit.Args
-		username     *string
-		password     *string
-		certFilepath *string
-		keyFilepath  *string
-		port         *string
-		useFCGI      *bool
-	}{
-		bitfit.ArgsWithFlagSet(fs),
-		fs.String("username", "", "A username required on client requests for HTTP basic auth, as per RFC 7617"),
-		fs.String("password", "", "A password required on client requests for HTTP basic auth, as per RFC 7617"),
-		fs.String("certfile", "cert.txt", "a cert to use for the proxy server for TLS / HTTPS"),
-		fs.String("keyfile", "key.txt", "a key to use for the proxy server for TLS / HTTPS"),
-		fs.String("port", ":9090", "The port to serve on."),
-		fs.Bool("cgi", false, "Serve HTTP via FastCGI"),
+	s := "is required on client requests for HTTP basic auth, as per RFC 7617"
+	ss := "to use for the proxy server for TLS / HTTPS"
+	args := Args{
+		Args:         bitfit.ArgsWithFlagSet(fs, configFilepath),
+		username:     fs.String("username", "", "a username "+s),
+		password:     fs.String("password", "", "a password "+s),
+		certFilepath: fs.String("certfile", "cert.txt", "a cert "+ss),
+		keyFilepath:  fs.String("keyfile", "key.txt", "a key "+ss),
+		port:         fs.String("port", ":9090", "the port to serve on"),
+		useFCGI:      fs.Bool("cgi", false, "serve HTTP via FastCGI"),
 	}
+	return fs, args
+}
+
+func (a Args) Validate() error {
+	if err := a.Args.Validate(); err != nil {
+		return err
+	}
+	switch "" {
+	case *a.username, *a.password:
+		s := "a username and password to use for client authentication are required"
+		return fmt.Errorf(s)
+	case *a.certFilepath, *a.keyFilepath:
+		if *a.useFCGI {
+			break
+		}
+		s := "filepaths for TLS certificate and key are required to run as server over HTTPS"
+		return fmt.Errorf(s)
+	}
+	return nil
+}
+
+func main() {
+	// TODO(aoeu): See if env vars can always be used on FastCGI server, remove hardcoded config path.
+	fs, args := setupFlagsAndArgs("args.json")
 	if err := bitfit.ParseFlagSet(fs); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("'%v'\n", *args.ClientID)
 	if err := args.Validate(); err != nil {
 		log.Fatal(err)
 	}

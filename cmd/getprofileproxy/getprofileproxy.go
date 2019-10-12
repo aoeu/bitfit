@@ -7,10 +7,11 @@ import (
 	"os"
 
 	"github.com/aoeu/bitfit"
+	"github.com/aoeu/bitfit/proxy"
 )
 
 func main() {
-	args, err := bitfit.ParseProxyFlags(os.Args[0])
+	args, err := proxy.ParseFlags(os.Args[0])
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -19,7 +20,7 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	if err := bitfit.InitProxy(*args.BaseURL, *args.Username, *args.Password); err != nil {
+	if err := proxy.Init(*args.BaseURL, *args.Username, *args.Password); err != nil {
 		log.Fatal(err)
 	}
 	b, err := bitfit.FetchProfile()

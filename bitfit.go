@@ -24,8 +24,10 @@ type Args struct {
 	TokensFilepath *string
 }
 
-func ArgsWithFlagSet(fs *flag.FlagSet) Args {
-	_ = fs.String("config", "", "config file (optional)")
+const ConfigFlagName = "config"
+
+func ArgsWithFlagSet(fs *flag.FlagSet, configDefault string) Args {
+	_ = fs.String(ConfigFlagName, configDefault, "config file (optional)")
 	return Args{
 		fs.String("id", "", "the OAuth2 API client ID"),
 		fs.String("secret", "", "the OAuth2 API client secret"),
@@ -48,7 +50,7 @@ func (a Args) Validate() error {
 
 func ParseFlagSet(fs *flag.FlagSet) error {
 	return ff.Parse(fs, os.Args[1:],
-		ff.WithConfigFileFlag("config"),
+		ff.WithConfigFileFlag(ConfigFlagName),
 		ff.WithConfigFileParser(ff.JSONParser),
 		ff.WithEnvVarPrefix("BIT_FIT"),
 	)
@@ -56,44 +58,7 @@ func ParseFlagSet(fs *flag.FlagSet) error {
 
 func ParseFlags(name string) (Args, error) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	a := ArgsWithFlagSet(fs)
-	err := ParseFlagSet(fs)
-	if err != nil {
-		return a, err
-	}
-	return a, a.Validate()
-}
-
-type ProxyArgs struct {
-	BaseURL  *string
-	Username *string
-	Password *string
-}
-
-// TODO(aoeu): Require caller to set config, i.e. `_ = fs.String("config", "", "config file (optional)")`
-func ProxyArgsWithFlagSet(fs *flag.FlagSet) ProxyArgs {
-	return ProxyArgs{
-		fs.String("url", "", "the base URL of the proxy server"),
-		fs.String("username", "", "A username required on client requests for HTTP basic auth, as per RFC 7617"),
-		fs.String("password", "", "A password required on client requests for HTTP basic auth, as per RFC 7617"),
-	}
-}
-
-func (a ProxyArgs) Validate() error {
-	switch {
-	case *a.BaseURL == "":
-		return fmt.Errorf("no proxy URL\n")
-	case *a.Username == "":
-		return fmt.Errorf("no username provided\n")
-	case *a.Password == "":
-		return fmt.Errorf("no password provided\n")
-	}
-	return nil
-}
-
-func ParseProxyFlags(name string) (ProxyArgs, error) {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	a := ProxyArgsWithFlagSet(fs)
+	a := ArgsWithFlagSet(fs, "")
 	err := ParseFlagSet(fs)
 	if err != nil {
 		return a, err
@@ -218,7 +183,8 @@ type Client struct {
 	secret         string
 	tokensFilepath string
 	initialized    bool
-	authorizer     func(r *http.Request) error
+	Initializer    func() (bool, error)
+	Authorizer     func(r *http.Request) error
 }
 
 func NewClient(id, secret, tokensFilepath string) *Client {
@@ -229,53 +195,49 @@ func NewClient(id, secret, tokensFilepath string) *Client {
 	}
 	// Effectively duplicate http.DefaultClient but with an overridden Transport.RoundTrip func.
 	c.Client = &http.Client{
+		// It is under-handed to make the Client a RoundTripper
+		// (such that it may be set as its own Transport field)
+		// instead of defining another type, but we'll need the
+		// Client's unexported fields in the RoundTrip metod.
 		Transport: c,
 	}
-	c.authorizer = c.authorizeWithOauth2
+	c.Authorizer = c.authorizeWithOauth2
+	c.Initializer = c.init
 	return c
 }
 
-func NewProxyClient(username, password string) *Client {
-	c := &Client{
-		id:     username,
-		secret: password,
-	}
-	c.Client = &http.Client{
-		Transport: c,
-	}
-	c.authorizer = c.authorizeWithBasicAuth
-	c.initialized = true
-	return c
+func (c *Client) Init() (err error) {
+	c.initialized, err = c.Initializer()
+	return err
 }
 
-func (c *Client) Init() error {
+func (c *Client) init() (initialized bool, err error) {
 	if c.tokensFilepath == "" {
 		s := "filepath of an existing token (serialized as JSON) must be set on Client"
-		return fmt.Errorf(s)
+		return false, fmt.Errorf(s)
 	}
 	b, err := ioutil.ReadFile(c.tokensFilepath)
 	if err != nil {
 		s := "filepath of tokens '%v' could not be read: %v"
-		return fmt.Errorf(s, c.tokensFilepath, err)
+		return false, fmt.Errorf(s, c.tokensFilepath, err)
 	}
 	var t Tokens
 	if err := json.Unmarshal(b, &t); err != nil {
 		s := "could not unmarshal tokens at filepath '%v': %v"
-		return fmt.Errorf(s, c.tokensFilepath, err)
+		return false, fmt.Errorf(s, c.tokensFilepath, err)
 	}
 	c.Tokens = t
 	if c.Expiration.Before(time.Now()) {
 		if err := c.refreshTokens(); err != nil {
 			s := "could not refresh expired tokens loaded from '%v' during Init func: %v"
-			return fmt.Errorf(s, err)
+			return false, fmt.Errorf(s, err)
 		}
 	}
-	c.initialized = true
-	return nil
+	return true, nil
 }
 
 func (c *Client) RoundTrip(req *http.Request) (*http.Response, error) {
-	if err := c.authorizer(req); err != nil {
+	if err := c.Authorizer(req); err != nil {
 		return nil, err
 	}
 	return http.DefaultTransport.RoundTrip(req)
@@ -289,11 +251,6 @@ func (c *Client) authorizeWithOauth2(req *http.Request) error {
 		}
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", c.Access))
-	return nil
-}
-
-func (c *Client) authorizeWithBasicAuth(req *http.Request) error {
-	req.SetBasicAuth(c.id, c.secret)
 	return nil
 }
 
@@ -357,12 +314,6 @@ func Init(id, secret, tokensFilepath string) error {
 	if err := DefaultClient.Init(); err != nil {
 		return fmt.Errorf("could not initalize package's default client: %v", err)
 	}
-	return nil
-}
-
-func InitProxy(baseURL, username, password string) error {
-	DefaultClient = NewProxyClient(username, password)
-	BaseURL = baseURL
 	return nil
 }
 
