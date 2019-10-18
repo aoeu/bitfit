@@ -530,6 +530,18 @@ func (o *Observation) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (o *Observation) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Start             time.Time
+		DurationInMinutes float64
+		SleepStage
+	}{
+		o.Start,
+		o.Duration.Minutes(),
+		o.SleepStage,
+	})
+}
+
 type ByStartTime []Observation
 
 func (b ByStartTime) Len() int           { return len(b) }
