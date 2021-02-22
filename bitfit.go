@@ -201,7 +201,7 @@ func NewClient(id, secret, tokensFilepath string) *Client {
 		// Client's unexported fields in the RoundTrip metod.
 		Transport: c,
 	}
-	c.Authorizer = c.authorizeWithOauth2
+	c.Authorizer = c.authorizeWithOAuth2
 	c.Initializer = c.init
 	return c
 }
@@ -243,7 +243,7 @@ func (c *Client) RoundTrip(req *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(req)
 }
 
-func (c *Client) authorizeWithOauth2(req *http.Request) error {
+func (c *Client) authorizeWithOAuth2(req *http.Request) error {
 	if c.shouldRefreshTokens() {
 		if err := c.refreshTokens(); err != nil {
 			s := "could not refresh expired tokens before request in round trip function: %v"
