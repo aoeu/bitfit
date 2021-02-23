@@ -27,6 +27,7 @@ type Args struct {
 	keyFilepath  *string
 	port         *string
 	useFCGI      *bool
+	useHTTP      *bool
 }
 
 func setupFlagsAndArgs(configFilepath string) (*flag.FlagSet, Args) {
@@ -41,6 +42,7 @@ func setupFlagsAndArgs(configFilepath string) (*flag.FlagSet, Args) {
 		keyFilepath:  fs.String("keyfile", "key.txt", "a key "+ss),
 		port:         fs.String("port", ":9090", "the port to serve on"),
 		useFCGI:      fs.Bool("cgi", false, "serve HTTP via FastCGI"),
+		useHTTP:      fs.Bool("http", true, "serve via HTTP instead of HTTPS"),
 	}
 	return fs, args
 }
@@ -54,7 +56,7 @@ func (a Args) Validate() error {
 		s := "a username and password to use for client authentication are required"
 		return fmt.Errorf(s)
 	case *a.certFilepath, *a.keyFilepath:
-		if *a.useFCGI {
+		if *a.useFCGI || *a.useHTTP {
 			break
 		}
 		s := "filepaths for TLS certificate and key are required to run as server over HTTPS"
@@ -94,6 +96,10 @@ func main() {
 	switch {
 	case *args.useFCGI:
 		if err := fcgi.Serve(nil, apiProxy); err != nil {
+			log.Fatal(err)
+		}
+	case *args.useHTTP:
+		if err := http.ListenAndServe(*args.port, apiProxy); err != nil {
 			log.Fatal(err)
 		}
 	default:
