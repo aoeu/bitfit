@@ -293,6 +293,10 @@ func (c *Client) fetch(url string) (respBody []byte, err error) {
 	if err != nil {
 		return []byte{}, err
 	}
+	if resp.StatusCode != 200 {
+		s := "did not receive HTTP status OK (200) when fetching '%s' : %s"
+		return b, fmt.Errorf(s, url, resp.Status)
+	}
 	return format(b)
 }
 
